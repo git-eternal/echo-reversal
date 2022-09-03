@@ -11,4 +11,11 @@ The typical procedure goes as follows:
  - Echo proceeds to scan the system as well as the games memory, looking for traces of cheating software (typically with known patterns, strings and other potential red flags)
  - Echo reports the results of the scan back to the staff member (saying what it found, if anything), which they look at and use their own judgement to decide whether to punish the player (typically a permanent ban).
 
-# Driver Analysis
+# Analysis
+Echo has two core components:
+ - Usermode executable
+   * Used to launch the scan, load the driver as well as display the GUI
+ - Kernel driver
+   * Used to interact with the virtual memory of the game/windows services
+
+In this post, we will only be analyzing the kernel mode driver due to its easily exploitable nature as well as to demonstrate the lack of effort put into such a major component of this tool.
