@@ -71,7 +71,7 @@ namespace echo::detours
         if (hDevice != INVALID_HANDLE_VALUE)
         {
           driver_handle = hDevice;
-          printf("[+] Obtained driver handle: 0x%p\n", &driver_handle);
+          printf("[+] Obtained driver handle: 0x%p\n\n", &driver_handle);
         }
       });
 
@@ -79,31 +79,31 @@ namespace echo::detours
 
     if (ioctl_code == IoctlCodes::VerifySignature)
     {
-      printf("[DeviceIoControl]: Intercepted verify signature IOCTL\n");
+      printf("[INFO]: Intercepted verify signature IOCTL\n");
 
       auto packet = (echo::structs::VerifySignature*)lpInBuffer;
 
-      std::wcout << "Signature [PB]: " << packet->pb_sig << '\n';
-      std::cout << "Signature [CB]: " << packet->cb_sig << '\n';
-      std::cout << "Success [should be 0]: " << packet->success << '\n';
+      std::wcout << "  Signature [PB]: " << packet->pb_sig << '\n';
+      std::cout << "  Signature [CB]: " << packet->cb_sig << '\n';
+      //std::cout << " Success [should be 0]: " << packet->success << '\n';
 
       std::cout << '\n';
     }
     
     if (ioctl_code == IoctlCodes::ObRegisterCallback)
     {
-      printf("[DeviceIoControl]: Intercepted ObReigsterCallback IOCTL\n");
+      printf("[INFO]: Intercepted ObRegisterCallback IOCTL\n");
 
       auto packet =  (echo::structs::ObRegisterCallback*)lpInBuffer;
 
-      std::cout << "Pid1: " << packet->pid << '\n';
-      std::cout << "Pid2: " << packet->pid2 << '\n';
-      std::cout << "Self_proc_id: " << packet->self_proc_id << '\n';
+      std::cout << "  Pid1: " << packet->pid << '\n';
+      std::cout << "  Pid2: " << packet->pid2 << '\n';
+     // std::cout << "Self_proc_id: " << packet->self_proc_id << '\n';
 
       packet->pid = 0; // dont protect echo.exe lol
       packet->success = true;
 
-      printf("[+] Successfully stripped ObRegisterCallback\n");
+      printf("\n[+] Successfully stripped callback\n");
     }
 
     //{
