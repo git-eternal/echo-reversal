@@ -36,17 +36,32 @@ namespace echo::structs
     bool success;
     ulong self_proc_id;
   };
-}
 
+  enum class IoctlCodes : std::uint64_t
+  {
+    VerifySignature = 0x9e6a0594,
+    ObRegisterCallback = 0x252e5e08,
+
+  };
+}
 namespace echo::detours
 {
   decltype(&DeviceIoControl) o_DeviceIoControl;
 
   HANDLE driver_handle{};
 
-  BOOL __stdcall d_DeviceIoControl(HANDLE hDevice, DWORD dwIoControlCode, LPVOID lpInBuffer, DWORD nInBufferSize,
-    LPVOID lpOutBuffer, DWORD nOutBufferSize, LPDWORD lpBytesReturned, LPOVERLAPPED lpOverlapped)
+  BOOL __stdcall DeviceIoControl_hk(
+    HANDLE hDevice, 
+    DWORD dwIoControlCode, 
+    LPVOID lpInBuffer,
+    DWORD nInBufferSize,
+    LPVOID lpOutBuffer,
+    DWORD nOutBufferSize, 
+    LPDWORD lpBytesReturned, 
+    LPOVERLAPPED lpOverlapped)
   {
+    using namespace echo::structs;
+
     static std::once_flag flag{};
 
     // get global handle
@@ -60,7 +75,9 @@ namespace echo::detours
         }
       });
 
-    if (dwIoControlCode == 0x9e6a0594)
+    auto ioctl_code = (IoctlCodes)dwIoControlCode;
+
+    if (ioctl_code == IoctlCodes::VerifySignature)
     {
       printf("[DeviceIoControl]: Intercepted verify signature IOCTL\n");
 
@@ -73,8 +90,7 @@ namespace echo::detours
       std::cout << '\n';
     }
     
-    // obregistercallback
-    if (dwIoControlCode == 0x252e5e08)
+    if (ioctl_code == IoctlCodes::ObRegisterCallback)
     {
       printf("[DeviceIoControl]: Intercepted ObReigsterCallback IOCTL\n");
 
@@ -97,13 +113,27 @@ namespace echo::detours
     //  printf("\tnInBufferSize => %u\n", nInBufferSize);
     //}
 
-    return o_DeviceIoControl(hDevice, dwIoControlCode, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize, lpBytesReturned, lpOverlapped);
+    return o_DeviceIoControl(
+      hDevice, 
+      dwIoControlCode, 
+      lpInBuffer,
+      nInBufferSize, 
+      lpOutBuffer, 
+      nOutBufferSize, 
+      lpBytesReturned, 
+      lpOverlapped);
   }
 
   decltype(&CreateFileA) o_CreateFileA;
 
-  HANDLE __stdcall d_CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-    DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile)
+  HANDLE __stdcall CreateFileA_hk
+  (LPCSTR lpFileName,
+    DWORD dwDesiredAccess,
+    DWORD dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD dwCreationDisposition,
+    DWORD dwFlagsAndAttributes, 
+    HANDLE hTemplateFile)
   {
     //printf("Enter CreateFileA Detour\n");
 
@@ -119,7 +149,14 @@ namespace echo::detours
 
     //printf("Calling CreateFileA original\n\n");
 
-    return o_CreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+    return o_CreateFileA(
+      lpFileName, 
+      dwDesiredAccess, 
+      dwShareMode, 
+      lpSecurityAttributes,
+      dwCreationDisposition, 
+      dwFlagsAndAttributes,
+      hTemplateFile);
   }
 }
 
@@ -132,10 +169,10 @@ namespace echo::context
     if (MH_Initialize() != MH_OK)
       return false;
 
-    if (MH_CreateHook(&DeviceIoControl, detours::d_DeviceIoControl, (void**)&detours::o_DeviceIoControl) != MH_OK)
+    if (MH_CreateHook(&DeviceIoControl, detours::DeviceIoControl_hk, (void**)&detours::o_DeviceIoControl) != MH_OK)
       return false;
 
-    if (MH_CreateHook(&CreateFileA, detours::d_CreateFileA, (void**)&detours::o_CreateFileA) != MH_OK)
+    if (MH_CreateHook(&CreateFileA, detours::CreateFileA_hk, (void**)&detours::o_CreateFileA) != MH_OK)
       return false;
 
     return MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
