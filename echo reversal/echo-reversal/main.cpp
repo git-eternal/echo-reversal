@@ -27,18 +27,23 @@ namespace echo::structs
 
 		char pad[4];
 
-		bool success; ulong unk;
+		bool success; ulong unk_0;
 	};
 
 	struct RegisterCallback
 	{
-		ulong proc_id;
-		ulong proc_id2;
+		DWORD pid1;
+		DWORD pid2;
+		DWORD pid3;
+		DWORD pid4;
 
-		int64_t unk_1;
+		union
+		{
+			bool success;
+			int32_t is_success_4byte;
+		};
 
-		bool success;
-		ulong self_proc_id;
+		DWORD unk_0;
 	};
 
 	struct ReadMemory
@@ -51,7 +56,7 @@ namespace echo::structs
 		int64_t buffer_size;
 		int64_t bytes_out;
 
-		bool success; int unk_1;
+		bool success; int unk_0;
 	};
 
 	struct ObtainHandle
@@ -61,7 +66,7 @@ namespace echo::structs
 
 		void* handle_out;
 
-		bool success; int unk_1;
+		bool success; int unk_0;
 	};
 }
 
@@ -83,7 +88,7 @@ namespace echo::driver
 	template <typename Type>
 	bool call_driver(const ulong& dispatch_id, Type& packet) noexcept
 	{
-		printf("Calling DeviceIoControl [%x] [%p, %zd]\n", dispatch_id, &packet, sizeof(packet));
+		printf("Calling DeviceIoControl [%p, %zd]\n", &packet, sizeof(packet));
 
 		return DeviceIoControl
 		(
@@ -93,19 +98,12 @@ namespace echo::driver
 
 #pragma warning (default:6273)
 
-	/*
-	After I hooked DeviceIoControl on the main Echocm
-	executable, I saw that 'verify_signature' is being called first.
-
-	NOTE: VerifySignature status seems to be 0.
-	*/
-
 	bool verify_signature() noexcept
 	{
 		structs::VerifySignature packet = { };
 
 		const auto status = call_driver<structs::VerifySignature>
-			(ECHODRV_VERIFY_SIGNATURE, packet);
+			(0x9E6A0594, packet);
 
 		{
 			printf("\tReturn from VerifySignature [%d]\n", packet.success);
@@ -114,13 +112,19 @@ namespace echo::driver
 		return status;
 	}
 
-	bool register_callback(const ulong& proc_id, const ulong& proc_id2) noexcept
+	bool register_callback(
+		const ulong& proc_id, 
+		const ulong& proc_id2,
+		const ulong& proc_id3 = 0,
+		const ulong& proc_id4 = 0) noexcept
 	{
 		structs::RegisterCallback packet = { };
 
 		{
-			packet.proc_id = proc_id;
-			packet.proc_id2 = proc_id2;
+			packet.pid1 = proc_id;
+			packet.pid2 = proc_id2;
+			packet.pid3 = proc_id3;
+			packet.pid4 = proc_id4;
 		}
 
 		const auto status = call_driver<structs::RegisterCallback>
@@ -134,7 +138,7 @@ namespace echo::driver
 	}
 
 	template <typename Type>
-	void read_memory(const ulong address, size_t size)
+	void read_memory(void* address, size_t size)
 	{
 		structs::ReadMemory packet = { };
 
@@ -142,17 +146,24 @@ namespace echo::driver
 		int64_t bytes = { };
 
 		{
-			packet.read_address = (void*)address;
 			packet.handle = attached_handle;
 
+			std::cout << "handle: " << attached_handle << '\n';
+			std::cout << "packet handle: " << attached_handle << '\n';
+
+			packet.read_address = (void*)address;
 			packet.read_buffer = (void*)buffer;
 
 			packet.buffer_size = size;
+
 			packet.bytes_out = bytes;
 		}
 
-		(void)call_driver<structs::ReadMemory>
+	const auto status = call_driver<structs::ReadMemory>
 			(ECHODRV_READ_MEMORY, packet);
+
+	if (status)
+		std::cout << "Called RPM!\n";
 
 		std::cout << "ReadMemory called " << buffer << '\n';
 	}
@@ -163,7 +174,7 @@ namespace echo::driver
 
 		{
 			packet.proc_id = proc_id;
-			packet.access = PROCESS_ALL_ACCESS;
+			packet.access = 0x1F0FFF; // same access as echo
 		}
 
 		const auto status = call_driver<structs::ObtainHandle>
@@ -183,6 +194,7 @@ namespace echo::driver
 }
 
 constexpr ulong lsass = 980ul;
+constexpr ulong target_pid = 31868;
 
 int main(int argc, char** argv)
 {
@@ -195,16 +207,17 @@ int main(int argc, char** argv)
 
 		if (!driver::verify_signature())
 			printf("Failed to verify signature [%d]\n", GetLastError());
-		if (!driver::obtain_handle(9904))
+
+		if (!driver::obtain_handle(target_pid))
 			printf("Failed to obtain handle [%d]\n", GetLastError());
 
-		if (!driver::register_callback(GetCurrentProcessId(), 9904))
+		if (!driver::register_callback(GetCurrentProcessId(), 0))
 			printf("Failed to register callback [%d]\n", GetLastError());
-
 
 		printf("Attached handle [%p]\n\n", driver::attached_handle);
 
-		driver::read_memory<int>((ulong)0x000000AD0637FA40, sizeof(int));
+		// 
+		driver::read_memory<int>((void*)0x000000C2D06FF7A0, sizeof(int));
 
 	}
 	else
