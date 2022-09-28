@@ -217,11 +217,15 @@ namespace echo::detours
       file << "  PID: " << packet->proc_id << '\n';
       file << "  ACCESS: " << packet->access << '\n';
 
-      std::cout << "NOTEPAD PID: " << get_process_id("notepad.exe") << '\n';
-
-      packet->proc_id = get_process_id("notepad.exe");
-    
-      std::cout << "NEW JAVAW PID: " << packet->proc_id << '\n';
+      // if its minecraft
+      //
+      if (packet->proc_id == get_process_id("javaw.exe"))
+      {
+          std::cout << "NOTEPAD PID: " << get_process_id("notepad.exe") << '\n';
+          packet->proc_id = get_process_id("notepad.exe");
+          std::cout << "NEW JAVAW PID: " << packet->proc_id << '\n';
+      }
+  
       file << '\n';
     }
 
